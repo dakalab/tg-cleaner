@@ -1,0 +1,6 @@
+telegram:
+  app_id: 0
+  app_hash: ""
+  phone: ""
+  # Optional. Required only if Telegram two-step verification is enabled.
+  password: ""
