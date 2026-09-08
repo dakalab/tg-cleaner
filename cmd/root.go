@@ -26,7 +26,6 @@ func newRootCommand() *cobra.Command {
 
 func newRootCommandWithRunner(runTelegram telegramRunner) *cobra.Command {
 	var configPath string
-	var confirm bool
 	var configuration config.Config
 
 	command := &cobra.Command{
@@ -45,15 +44,32 @@ func newRootCommandWithRunner(runTelegram telegramRunner) *cobra.Command {
 			configuration = loaded
 			return nil
 		},
-		RunE: func(command *cobra.Command, _ []string) error {
+	}
+
+	run := func(confirm *bool) func(*cobra.Command, []string) error {
+		return func(command *cobra.Command, _ []string) error {
 			ctx, stop := signal.NotifyContext(command.Context(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
 
-			return runTelegram(ctx, configuration.Telegram, confirm, command.InOrStdin(), command.OutOrStdout())
-		},
+			return runTelegram(ctx, configuration.Telegram, *confirm, command.InOrStdin(), command.OutOrStdout())
+		}
 	}
 
 	command.PersistentFlags().StringVar(&configPath, "config", defaultConfigPath, "path to the YAML configuration file")
-	command.Flags().BoolVar(&confirm, "confirm", false, "leave all discovered channels and groups")
+
+	var rootConfirm bool
+	command.RunE = run(&rootConfirm)
+	command.Flags().BoolVar(&rootConfirm, "confirm", false, "leave all discovered non-admin channels and groups")
+
+	var leaveConfirm bool
+	leaveCommand := &cobra.Command{
+		Use:   "leave",
+		Short: "Leave channels and groups where this account is not an administrator",
+		Args:  cobra.NoArgs,
+		RunE:  run(&leaveConfirm),
+	}
+	leaveCommand.Flags().BoolVar(&leaveConfirm, "confirm", false, "leave all discovered non-admin channels and groups")
+	command.AddCommand(leaveCommand)
+
 	return command
 }

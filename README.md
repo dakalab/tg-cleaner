@@ -1,6 +1,7 @@
 # tg-cleaner
 
-Leave every Telegram channel and group while retaining private conversations.
+Leave Telegram channels and groups where the account isn't an administrator,
+while retaining private conversations and administered chats.
 
 ## Getting started
 
@@ -31,15 +32,20 @@ telegram:
 Run a safe preview first:
 
 ```sh
-go run .
+go run . leave
 ```
 
-The preview lists the channels and groups that would be left without changing
-your account. To leave all listed chats, explicitly confirm the operation:
+The preview lists non-admin channels and groups that would be left without
+changing your account. Chats owned or administered by the account are always
+excluded. To leave all listed chats, explicitly confirm the operation:
 
 ```sh
-go run . --confirm
+go run . leave --confirm
 ```
+
+For rate-limit safety, the command waits a randomized 10–15 seconds between
+leave requests. If Telegram returns a rate-limit response, it honors the
+requested wait before retrying. Press Ctrl+C to stop safely at any time.
 
 On first use, enter the verification code sent by Telegram at the terminal.
 The authenticated session is stored under `.tdlib/` and reused by later runs.
@@ -51,5 +57,5 @@ and library paths:
 ```sh
 CGO_CFLAGS="-I/path/to/tdlib/include" \
 CGO_LDFLAGS="-Wl,-rpath,/path/to/tdlib/lib -L/path/to/tdlib/lib -ltdjson" \
-go run . --confirm
+go run . leave --confirm
 ```
