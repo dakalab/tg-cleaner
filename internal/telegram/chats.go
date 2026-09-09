@@ -39,7 +39,7 @@ func cleanChats(ctx context.Context, tdlibClient chatClient, confirm bool, outpu
 
 type waitFunc func(context.Context, time.Duration) error
 
-func cleanChatsWithWait(ctx context.Context, tdlibClient chatClient, confirm bool, output io.Writer, wait waitFunc) error {
+func cleanChatsWithWait(ctx context.Context, tdlibClient chatClient, confirm bool, output io.Writer, wait waitFunc) (returnErr error) {
 	chats, err := joinedNonAdminChannelsAndGroups(ctx, tdlibClient)
 	if err != nil {
 		return err
@@ -49,15 +49,27 @@ func cleanChatsWithWait(ctx context.Context, tdlibClient chatClient, confirm boo
 		return err
 	}
 
-	for _, chat := range chats {
-		if _, err := fmt.Fprintf(output, "%s (ID: %d)\n", chat.Title, chat.Id); err != nil {
-			return fmt.Errorf("write Telegram chat: %w", err)
-		}
-	}
 	if !confirm {
+		for _, chat := range chats {
+			if _, err := fmt.Fprintf(output, "%s (ID: %d)\n", chat.Title, chat.Id); err != nil {
+				return fmt.Errorf("write Telegram chat: %w", err)
+			}
+		}
 		_, err := fmt.Fprintf(output, "Found %d chats. Re-run with --confirm to leave them.\n", len(chats))
 		return err
 	}
+
+	leftCount := 0
+	defer func() {
+		if _, err := fmt.Fprintf(output, "Left %d Telegram channels and groups during this run.\n", leftCount); err != nil {
+			writeErr := fmt.Errorf("write Telegram leave summary: %w", err)
+			if returnErr == nil {
+				returnErr = writeErr
+			} else {
+				returnErr = errors.Join(returnErr, writeErr)
+			}
+		}
+	}()
 
 	for index, chat := range chats {
 		if index > 0 {
@@ -69,9 +81,12 @@ func cleanChatsWithWait(ctx context.Context, tdlibClient chatClient, confirm boo
 		if err := leaveChat(ctx, tdlibClient, chat, output, wait); err != nil {
 			return err
 		}
+		leftCount++
+		if _, err := fmt.Fprintf(output, "Left %s (ID: %d).\n", chat.Title, chat.Id); err != nil {
+			return fmt.Errorf("write Telegram leave progress: %w", err)
+		}
 	}
-	_, err = fmt.Fprintf(output, "Left %d Telegram channels and groups.\n", len(chats))
-	return err
+	return nil
 }
 
 func leaveChat(ctx context.Context, tdlibClient chatClient, chat *client.Chat, output io.Writer, wait waitFunc) error {
