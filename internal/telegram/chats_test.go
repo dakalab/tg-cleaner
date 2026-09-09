@@ -3,6 +3,7 @@ package telegram
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -80,6 +81,31 @@ func TestCleanChatsLeavesJoinedNonAdminChannelsAndGroupsWhenConfirmed(t *testing
 
 	if got, want := fmt.Sprint(tdlibClient.leftChatIDs), "[1 5]"; got != want {
 		t.Errorf("left chat IDs = %s, want %s", got, want)
+	}
+	want := "Left Group (ID: 1).\nLeft Restricted group (ID: 5).\nLeft 2 Telegram channels and groups during this run.\n"
+	if output.String() != want {
+		t.Errorf("output = %q, want %q", output.String(), want)
+	}
+}
+
+func TestCleanChatsPrintsPartialSummaryWhenInterrupted(t *testing.T) {
+	tdlibClient := newFakeChatClient()
+	var output bytes.Buffer
+	interrupted := context.Canceled
+	wait := func(context.Context, time.Duration) error {
+		return interrupted
+	}
+
+	err := cleanChatsWithWait(context.Background(), tdlibClient, true, &output, wait)
+	if !errors.Is(err, interrupted) {
+		t.Fatalf("cleanChats() error = %v, want context cancellation", err)
+	}
+	if got, want := fmt.Sprint(tdlibClient.leftChatIDs), "[1]"; got != want {
+		t.Errorf("left chat IDs = %s, want %s", got, want)
+	}
+	want := "Left Group (ID: 1).\nLeft 1 Telegram channels and groups during this run.\n"
+	if output.String() != want {
+		t.Errorf("output = %q, want %q", output.String(), want)
 	}
 }
 
